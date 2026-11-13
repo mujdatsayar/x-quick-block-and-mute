@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         X.com Hızlı Engelleme, Hesap ve Kelime Sessize Alma (Hepsi Bir Arada)
+// @name         X.com Quick Block, Account & Keyword Mute (All-in-One)
 // @namespace    https://github.com/mujdatsayar/x-quick-block-and-mute
 // @version      4.0.1
-// @description  X.com'da kullanıcı adına tıklayınca Profil / Sessize Al / Engelle sunar; tek veya çoklu seçilen kelimeleri doğrudan X ayarlarındaki (Sessize Alınan Kelimeler / Hesaplar / Engellenenler) listesine kaydeder.
+// @description  Click any username on X.com to open Profile / Mute / Block actions; highlight single or multiple words to save them directly to your official X settings (Muted words / Muted accounts / Blocked accounts).
 // @author       Antigravity
 // @homepageURL  https://github.com/mujdatsayar/x-quick-block-and-mute
 // @supportURL   https://github.com/mujdatsayar/x-quick-block-and-mute/issues
@@ -27,11 +27,11 @@
     'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
   // =========================================================================
-  // 0. AYARLAR & ÇALIŞMA ZAMANI DURUMU
+  // 0. SETTINGS & RUNTIME STATE
   // =========================================================================
   const SETTINGS_KEY = 'xqb_settings_v4';
   const DEFAULT_SETTINGS = {
-    muteDurationMs: '', // '' = Sonsuz, '86400000' = 24 saat, '604800000' = 7 gün, '2592000000' = 30 gün
+    muteDurationMs: '', // '' = Forever, '86400000' = 24 hours, '604800000' = 7 days, '2592000000' = 30 days
     excludeFollowing: true,
     muteSurfaces: 'notifications,home_timeline,tweet_replies',
     hideLocallyAfterApi: true
@@ -54,12 +54,12 @@
     } catch (_) {}
   }
 
-  // Oturum içinde gizlenen öğeler (sayfa içi MutationObserver desteği)
+  // Items hidden during the current session (for live MutationObserver filtering)
   const sessionMutedKeywords = new Set();
   const sessionHiddenHandles = new Set();
   let capturedBearer = DEFAULT_BEARER;
 
-  // X'in kendi gönderdiği Authorization Bearer token'ını dinamik yakala (fetch + XHR)
+  // Dynamically capture X's active Authorization Bearer token (fetch + XHR)
   try {
     const origFetch = win.fetch;
     if (typeof origFetch === 'function') {
@@ -102,7 +102,7 @@
   } catch (_) {}
 
   // =========================================================================
-  // 1. CSS & STİL TANIMLARI (Light / Dim / Lights Out Tema Uyumlu)
+  // 1. CSS & STYLES (Light / Dim / Lights Out Theme Sync)
   // =========================================================================
   const CSS = `
     :root {
@@ -289,7 +289,7 @@
       text-align: center;
     }
 
-    /* === METİN SEÇİMİ POPOVER === */
+    /* === TEXT SELECTION POPOVER === */
     .xqb-popover {
       position: fixed !important;
       z-index: 2147483647 !important;
@@ -356,7 +356,7 @@
       white-space: nowrap !important;
     }
 
-    /* === ÇOKLU KELİME SEÇİM MODALI === */
+    /* === MULTI-KEYWORD SELECTION MODAL === */
     .xqb-modal-wide {
       max-width: 440px;
     }
@@ -446,7 +446,7 @@
       cursor: pointer;
     }
 
-    /* === BİLDİRİM TOAST === */
+    /* === NOTIFICATION TOAST === */
     .xqb-toast {
       position: fixed;
       bottom: 24px;
@@ -491,7 +491,7 @@
       background: rgba(255, 255, 255, 0.32);
     }
 
-    /* Gizli DOM İşlemleri için Görünmez Katman */
+    /* Stealth layer for background native DOM actions */
     .xqb-stealth-active [data-testid="Dropdown"],
     .xqb-stealth-active div[role="dialog"]:has([data-testid="confirmationSheetConfirm"]) {
       opacity: 0 !important;
@@ -556,7 +556,7 @@
   }
 
   // =========================================================================
-  // 2. GÜVENLİ DOM & SVG YARDIMCILARI (TrustedHTML / XSS Uyumlu)
+  // 2. SAFE DOM & SVG HELPERS (TrustedHTML / XSS Safe)
   // =========================================================================
   function createSvgIcon(pathD, size = 18, strokeOnly = false) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -617,7 +617,7 @@
       undoBtn.textContent = undoLabel;
       undoBtn.addEventListener('click', async () => {
         undoBtn.disabled = true;
-        undoBtn.textContent = 'Geri alınıyor...';
+        undoBtn.textContent = 'Undoing...';
         await onUndo();
         toast.classList.remove('xqb-toast-show');
         setTimeout(() => toast.remove(), 250);
@@ -666,7 +666,7 @@
   }
 
   // =========================================================================
-  // 3. DİNAMİK X.COM WEBPACK, REDUX & RESMİ API MOTORU (Sürüm Bağımsız)
+  // 3. DYNAMIC X.COM WEBPACK, REDUX & OFFICIAL API ENGINE
   // =========================================================================
   let cachedWpRequire = null;
   let cachedTidFn = null;
@@ -686,12 +686,12 @@
         ]);
       }
     } catch (e) {
-      console.warn('[XQB] Webpack erişim hatası:', e);
+      console.warn('[XQB] Webpack access error:', e);
     }
     return cachedWpRequire;
   }
 
-  // Sabit ID olmadan x-client-transaction-id üreten modülü dinamik bul
+  // Dynamically discover X's x-client-transaction-id generator without hardcoded module IDs
   async function generateTransactionId(path, method = 'POST') {
     const wpReq = getWebpackRequire();
     if (!wpReq || !wpReq.m) return '';
@@ -737,7 +737,11 @@
     const moduleIds = Object.keys(wpReq.m);
     const orderedIds = [
       ...moduleIds.filter((id) => {
-        try { return prioritySigs.some((s) => wpReq.m[id].toString().includes(s)); } catch (_) { return false; }
+        try {
+          return prioritySigs.some((s) => wpReq.m[id].toString().includes(s));
+        } catch (_) {
+          return false;
+        }
       }),
       ...moduleIds
     ];
@@ -800,7 +804,7 @@
         (k) => k.startsWith('__reactFiber$') || k.startsWith('__reactContainer$')
       );
       if (fKey && el[fKey]) {
-        // Önce yukarı çık (Provider üsttedir)
+        // Walk up first (Provider lives higher in the tree)
         let up = el[fKey];
         while (up) {
           if (isStore(up.memoizedProps?.store)) return up.memoizedProps.store;
@@ -814,7 +818,7 @@
       }
     }
 
-    // Bulunamadıysa sınırlı BFS ile alt düğümlerde ara
+    // Fallback: bounded BFS across child Fiber nodes
     let steps = 0;
     while (queue.length && steps < 400) {
       const node = queue.shift();
@@ -899,7 +903,7 @@
   async function callXApi(endpointPath, paramsObj) {
     const ct0 = getCookie('ct0');
     if (!ct0) {
-      return { ok: false, status: 0, error: 'CSRF token (ct0) bulunamadı. Oturum açık mı?' };
+      return { ok: false, status: 0, error: 'CSRF token (ct0) not found. Are you signed in?' };
     }
 
     const body = new URLSearchParams();
@@ -938,7 +942,7 @@
         return { ok: true, alreadyExists: true, status: res.status, data };
       }
 
-      console.warn('[XQB Debug] API başarısız:', {
+      console.warn('[XQB Debug] API request failed:', {
         url: `${baseUrl}${signPath}`,
         hasTid: Boolean(tid),
         tidLen: tid ? tid.length : 0,
@@ -954,7 +958,7 @@
       const primary = await sendToBase(win.location.origin, endpointPath);
       if (primary.ok) return primary;
 
-      // x.com/i/api/1.1/... 404 verirse api.x.com/1.1/... yolunu da dene
+      // Retry against api.x.com/1.1/... if x.com/i/api/1.1/... returns 404
       if (primary.status === 404 && endpointPath.startsWith('/i/api/')) {
         const apiPath = endpointPath.replace(/^\/i\/api/, '');
         const apiHost = win.location.hostname.includes('twitter.com')
@@ -966,12 +970,12 @@
 
       return primary;
     } catch (err) {
-      return { ok: false, status: 0, error: err?.message || 'Ağ hatası' };
+      return { ok: false, status: 0, error: err?.message || 'Network error' };
     }
   }
 
   // =========================================================================
-  // 4. HESAP ENGELLEME & SESSİZE ALMA (X AYARLARINA GERÇEK KAYIT)
+  // 4. ACCOUNT BLOCK & MUTE (OFFICIAL X SETTINGS SYNC)
   // =========================================================================
   async function closeStrayMenus() {
     try {
@@ -989,7 +993,7 @@
     const testId = actionType === 'block' ? 'block' : 'mute';
     let succeeded = false;
 
-    // 1. ÖNCELİK: Yalnızca tıklanan kullanıcı doğrudan o tweet'in ana yazarıysa DOM akışını kullan
+    // 1st priority: Use native DOM flow only when the clicked user is the post's primary author
     if (domTweetEl) {
       document.documentElement.classList.add('xqb-stealth-active');
       try {
@@ -1006,13 +1010,13 @@
                 succeeded = true;
               }
             } else {
-              // X'te mute işlemi onay penceresi açmadan doğrudan uygulanır
+              // On X, muting applies directly without a confirmation dialog
               succeeded = true;
             }
           }
         }
       } catch (e) {
-        console.warn(`[XQB] DOM ${actionType} uyarısı:`, e);
+        console.warn(`[XQB] DOM ${actionType} warning:`, e);
       } finally {
         if (!succeeded) await closeStrayMenus();
         setTimeout(() => {
@@ -1023,7 +1027,7 @@
 
     if (succeeded) return { ok: true, via: 'native-ui' };
 
-    // 2. ÖNCELİK: Resmi X API (Ayarlar -> Engellenenler / Sessize Alınan Hesaplar'a yazar)
+    // 2nd priority: Official X API (writes to Settings -> Blocked / Muted accounts)
     const endpoint =
       actionType === 'block' ? '/i/api/1.1/blocks/create.json' : '/i/api/1.1/mutes/users/create.json';
 
@@ -1047,11 +1051,11 @@
   }
 
   // =========================================================================
-  // 5. KELİME SESSİZE ALMA (X AYARLARINA GERÇEK KAYIT)
+  // 5. KEYWORD MUTE (OFFICIAL X SETTINGS SYNC)
   // =========================================================================
   async function muteKeywordOnX(keyword, customOpts = null) {
     const cleanKeyword = keyword.trim();
-    if (!cleanKeyword) return { ok: false, error: 'Boş kelime' };
+    if (!cleanKeyword) return { ok: false, error: 'Empty keyword' };
 
     const settings = getSettings();
     const opts = customOpts || {
@@ -1060,8 +1064,8 @@
       mute_options: settings.excludeFollowing ? 'exclude_following_accounts' : ''
     };
 
-    // 1. ÖNCELİK: Doğrudan X Resmi Endpoint'i (/i/api/1.1/mutes/keywords/create.json)
-    // Sunucu HTTP 200 veya code 85 (zaten kayıtlı) dönmeden başarılı sayılmaz.
+    // 1st priority: Direct official X endpoint (/i/api/1.1/mutes/keywords/create.json)
+    // Only treated as successful on HTTP 200 or code 85 (already muted).
     const apiRes = await callXApi('/i/api/1.1/mutes/keywords/create.json', {
       keyword: cleanKeyword,
       mute_surfaces: opts.mute_surfaces,
@@ -1072,7 +1076,7 @@
       return { ...apiRes, via: 'api' };
     }
 
-    // 2. ÖNCELİK (Yedek): X'in kendi Redux store thunk'ı (dinamik bulunduysa)
+    // 2nd priority fallback: X's internal Redux store thunk (if discovered dynamically)
     try {
       const store = findReduxStore();
       const thunk = findMuteKeywordThunk();
@@ -1090,14 +1094,14 @@
         }
       }
     } catch (errStore) {
-      console.warn('[XQB] Redux thunk hatası:', errStore);
+      console.warn('[XQB] Redux thunk error:', errStore);
     }
 
     return { ...apiRes, via: 'api' };
   }
 
   // =========================================================================
-  // 6. AKIŞ GİZLEME (REACT VIRTUALIZER DOSTU - .remove() YERİNE GÜVENLİ GİZLEME)
+  // 6. FEED HIDING (REACT VIRTUALIZER SAFE - DISPLAY:NONE INSTEAD OF .remove())
   // =========================================================================
   function getTweetContainerForHide(tweetEl) {
     return tweetEl.closest('[data-testid="cellInnerDiv"]') || tweetEl;
@@ -1139,11 +1143,11 @@
   function tweetMatchesKeyword(tweetEl, keyword) {
     const textEl = tweetEl.querySelector('[data-testid="tweetText"]');
     if (!textEl) return false;
-    const text = textEl.textContent.toLocaleLowerCase('tr-TR');
-    const kw = keyword.trim().toLocaleLowerCase('tr-TR');
+    const text = textEl.textContent.toLowerCase();
+    const kw = keyword.trim().toLowerCase();
     if (!kw) return false;
 
-    // Tek kelime ise kelime sınırına dikkat et; çok kelimeli ifadede doğrudan ifade ara
+    // Respect word boundaries for single words; substring match for multi-word phrases
     if (!/\s/.test(kw) && /^[\p{L}\p{N}_]+$/u.test(kw)) {
       const rx = new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegex(kw)}($|[^\\p{L}\\p{N}_])`, 'u');
       return rx.test(text);
@@ -1177,7 +1181,7 @@
     });
   }
 
-  // Oturum boyunca scroll ile yeni gelen tweet'lerde de gizlemeyi sürdür
+  // Keep hiding newly scrolled-in posts throughout the session
   let feedObserverStarted = false;
   function startFeedObserver() {
     if (feedObserverStarted || !document.body) return;
@@ -1219,7 +1223,7 @@
   }
 
   // =========================================================================
-  // 7. MODALLAR: KULLANICI İŞLEMLERİ & ÇOKLU KELİME SESSİZE ALMA
+  // 7. MODALS: ACCOUNT ACTIONS & MULTI-KEYWORD MUTING
   // =========================================================================
   function createOverlayBase(wide = false) {
     syncThemeWithX();
@@ -1236,8 +1240,8 @@
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'xqb-close-btn';
-    closeBtn.setAttribute('title', 'Kapat (ESC)');
-    closeBtn.setAttribute('aria-label', 'Kapat');
+    closeBtn.setAttribute('title', 'Close (ESC)');
+    closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.appendChild(createSvgIcon(ICONS.close, 18));
 
     modal.appendChild(closeBtn);
@@ -1328,7 +1332,7 @@
     profileBtn.type = 'button';
     profileBtn.className = 'xqb-btn xqb-btn-profile';
     profileBtn.appendChild(createSvgIcon(ICONS.profile, 18));
-    profileBtn.appendChild(document.createTextNode('Profiline Git'));
+    profileBtn.appendChild(document.createTextNode('Go to Profile'));
     profileBtn.addEventListener('click', () => {
       closeModal();
       navigateSpaProfile(originalLinkEl, profileUrl);
@@ -1340,13 +1344,13 @@
       muteBtn.type = 'button';
       muteBtn.className = 'xqb-btn xqb-btn-mute';
       muteBtn.appendChild(createSvgIcon(ICONS.mute, 18));
-      muteBtn.appendChild(document.createTextNode('Bu Hesabı Sessize Al'));
+      muteBtn.appendChild(document.createTextNode('Mute Account'));
 
       const blockBtn = document.createElement('button');
       blockBtn.type = 'button';
       blockBtn.className = 'xqb-btn xqb-btn-block';
       blockBtn.appendChild(createSvgIcon(ICONS.block, 18));
-      blockBtn.appendChild(document.createTextNode('Bu Hesabı Engelle'));
+      blockBtn.appendChild(document.createTextNode('Block Account'));
 
       const setBusy = (btn, labelText) => {
         muteBtn.classList.add('xqb-btn-loading');
@@ -1355,55 +1359,55 @@
       };
 
       muteBtn.addEventListener('click', async () => {
-        setBusy(muteBtn, 'Sessize alınıyor...');
+        setBusy(muteBtn, 'Muting...');
         const res = await performAccountAction('mute', username, domTweetEl);
         closeModal();
 
         if (res.ok) {
           hideUserTweetsFromFeed(username);
-          showToast(`@${username} X ayarlarında sessize alınan hesaplara eklendi.`, {
-            undoLabel: 'Geri Al',
+          showToast(`@${username} added to muted accounts in X settings.`, {
+            undoLabel: 'Undo',
             onUndo: async () => {
               const undoRes = await undoAccountAction('mute', username);
               if (undoRes.ok) {
                 sessionHiddenHandles.delete(username.toLowerCase());
                 restoreHiddenElements(`user:${username.toLowerCase()}`);
-                showToast(`@${username} sessizden çıkarıldı.`);
+                showToast(`@${username} unmuted.`);
               } else {
-                showToast(`Geri alınamadı: ${undoRes.error || 'Hata'}`, { isDanger: true });
+                showToast(`Could not undo: ${undoRes.error || 'Error'}`, { isDanger: true });
               }
             }
           });
         } else {
-          showToast(`@${username} X ayarlarına kaydedilemedi: ${res.error || 'Bilinmeyen hata'}`, {
+          showToast(`Could not save @${username} to X settings: ${res.error || 'Unknown error'}`, {
             isDanger: true
           });
         }
       });
 
       blockBtn.addEventListener('click', async () => {
-        setBusy(blockBtn, 'Engelleniyor...');
+        setBusy(blockBtn, 'Blocking...');
         const res = await performAccountAction('block', username, domTweetEl);
         closeModal();
 
         if (res.ok) {
           hideUserTweetsFromFeed(username);
-          showToast(`@${username} X ayarlarında engellenenlere eklendi.`, {
+          showToast(`@${username} added to blocked accounts in X settings.`, {
             isDanger: true,
-            undoLabel: 'Geri Al',
+            undoLabel: 'Undo',
             onUndo: async () => {
               const undoRes = await undoAccountAction('block', username);
               if (undoRes.ok) {
                 sessionHiddenHandles.delete(username.toLowerCase());
                 restoreHiddenElements(`user:${username.toLowerCase()}`);
-                showToast(`@${username} engeli kaldırıldı.`);
+                showToast(`@${username} unblocked.`);
               } else {
-                showToast(`Engel kaldırılamadı: ${undoRes.error || 'Hata'}`, { isDanger: true });
+                showToast(`Could not unblock: ${undoRes.error || 'Error'}`, { isDanger: true });
               }
             }
           });
         } else {
-          showToast(`@${username} engellenemedi: ${res.error || 'Bilinmeyen hata'}`, {
+          showToast(`Could not block @${username}: ${res.error || 'Unknown error'}`, {
             isDanger: true
           });
         }
@@ -1417,8 +1421,8 @@
     const hint = document.createElement('div');
     hint.className = 'xqb-hint';
     hint.textContent = isSelf
-      ? 'Bu kendi hesabınız. Ctrl+Tık ile doğrudan açabilirsiniz.'
-      : 'İşlemler doğrudan X Ayarlar → Sessize al ve engelle listesine kaydedilir.';
+      ? 'This is your own account. Use Ctrl+Click to open directly.'
+      : 'Actions are saved directly to X Settings → Mute and block.';
     modal.appendChild(hint);
 
     profileBtn.focus();
@@ -1429,11 +1433,11 @@
       .split(/[\s,;|/]+/)
       .map((w) => w.replace(/^[^\p{L}\p{N}#@]+|[^\p{L}\p{N}]+$/gu, '').trim())
       .filter((w) => w.length >= 2);
-    // Benzersiz kelimeleri sırayla döndür (büyük/küçük harf duyarsız tekilleştirme)
+    // Return unique words in original order (case-insensitive deduplication)
     const seen = new Set();
     const unique = [];
     for (const w of tokens) {
-      const key = w.toLocaleLowerCase('tr-TR');
+      const key = w.toLowerCase();
       if (!seen.has(key)) {
         seen.add(key);
         unique.push(w);
@@ -1482,19 +1486,19 @@
         const w = toHide[0];
         showToast(
           alreadyMuted.length === 1
-            ? `"${w}" zaten X sessize alınan kelimelerde kayıtlı.`
-            : `"${w}" X ayarlarına (Sessize alınan kelimeler) eklendi.`
+            ? `"${w}" is already in your X muted words.`
+            : `"${w}" added to X settings (Muted words).`
         );
       } else {
-        showToast(`${totalOk} kelime X ayarlarına (Sessize alınan kelimeler) kaydedildi.`);
+        showToast(`${totalOk} keywords saved to X settings (Muted words).`);
       }
     } else if (succeeded.length + alreadyMuted.length > 0) {
       showToast(
-        `${succeeded.length + alreadyMuted.length} kelime kaydedildi, ${failed.length} kelime başarısız (${failed[0].error}).`,
+        `${succeeded.length + alreadyMuted.length} saved, ${failed.length} failed (${failed[0].error}).`,
         { isDanger: true }
       );
     } else {
-      showToast(`X ayarlarına kaydedilemedi: ${failed[0].error}`, { isDanger: true });
+      showToast(`Could not save to X settings: ${failed[0].error}`, { isDanger: true });
     }
   }
 
@@ -1504,12 +1508,12 @@
 
     const title = document.createElement('h3');
     title.className = 'xqb-modal-title';
-    title.textContent = 'Kelimeleri X Ayarlarına Sessize Al';
+    title.textContent = 'Mute Keywords in X Settings';
 
     const desc = document.createElement('p');
     desc.className = 'xqb-modal-desc';
     desc.textContent =
-      'Seçili kelimeleri işaretleyin veya yeni kelimeler ekleyin. Her biri doğrudan X Ayarlar → Sessize alınan kelimeler listesine kaydedilir.';
+      'Toggle the detected words or add extra keywords below. Each selected item is saved directly to X Settings → Muted words.';
 
     const selectedMap = new Map();
     initialWords.forEach((w) => selectedMap.set(w, true));
@@ -1527,8 +1531,8 @@
         createSvgIcon(ICONS.mute, 18),
         document.createTextNode(
           activeCount > 0
-            ? `Seçili ${activeCount} Kelimeyi X Ayarlarına Kaydet`
-            : 'En az 1 kelime seçin'
+            ? `Save ${activeCount} Selected Keyword${activeCount > 1 ? 's' : ''} to X Settings`
+            : 'Select at least 1 keyword'
         )
       );
       submitBtn.disabled = activeCount === 0;
@@ -1551,21 +1555,21 @@
       }
     };
 
-    // Özel kelime ekleme satırı
+    // Custom keyword input row
     const inputRow = document.createElement('div');
     inputRow.className = 'xqb-input-row';
 
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'xqb-input';
-    input.placeholder = 'Ek kelime ekle (virgülle ayırabilirsiniz)...';
+    input.placeholder = 'Add keywords (comma-separated)...';
 
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'xqb-btn xqb-btn-profile';
     addBtn.style.width = 'auto';
     addBtn.style.padding = '8px 14px';
-    addBtn.textContent = 'Ekle';
+    addBtn.textContent = 'Add';
 
     const addCustomWords = () => {
       const raw = input.value.trim();
@@ -1588,17 +1592,17 @@
     });
     inputRow.append(input, addBtn);
 
-    // Süre ve takip edilenler seçenekleri
+    // Duration and exclude-following options
     const optionsGrid = document.createElement('div');
     optionsGrid.className = 'xqb-options-grid';
 
     const durationSelect = document.createElement('select');
     durationSelect.className = 'xqb-select';
     [
-      { val: '', label: 'Süre: Sonsuz' },
-      { val: '86400000', label: 'Süre: 24 Saat' },
-      { val: '604800000', label: 'Süre: 7 Gün' },
-      { val: '2592000000', label: 'Süre: 30 Gün' }
+      { val: '', label: 'Duration: Forever' },
+      { val: '86400000', label: 'Duration: 24 Hours' },
+      { val: '604800000', label: 'Duration: 7 Days' },
+      { val: '2592000000', label: 'Duration: 30 Days' }
     ].forEach((opt) => {
       const o = document.createElement('option');
       o.value = opt.val;
@@ -1613,7 +1617,7 @@
     followCheck.type = 'checkbox';
     followCheck.checked = settings.excludeFollowing;
     const followSpan = document.createElement('span');
-    followSpan.textContent = 'Takip edilenler hariç';
+    followSpan.textContent = 'Exclude followed accounts';
     followLabel.append(followCheck, followSpan);
 
     optionsGrid.append(durationSelect, followLabel);
@@ -1622,12 +1626,12 @@
     actions.className = 'xqb-actions';
     actions.appendChild(submitBtn);
 
-    // İstersen tam ifadeyi de ayrıca butonla ekle
+    // Optional button to mute the full highlighted phrase as one rule
     if (fullPhrase && /\s/.test(fullPhrase) && initialWords.length > 1) {
       const phraseBtn = document.createElement('button');
       phraseBtn.type = 'button';
       phraseBtn.className = 'xqb-btn xqb-btn-mute';
-      phraseBtn.textContent = `Tam İfadeyi Ekle: "${
+      phraseBtn.textContent = `Mute Full Phrase: "${
         fullPhrase.length > 26 ? fullPhrase.slice(0, 24) + '...' : fullPhrase
       }"`;
       phraseBtn.addEventListener('click', async () => {
@@ -1666,7 +1670,7 @@
       submitBtn.classList.add('xqb-btn-loading');
       submitBtn.replaceChildren(
         createSvgIcon(ICONS.spinner, 18, true),
-        document.createTextNode('X ayarlarına kaydediliyor...')
+        document.createTextNode('Saving to X settings...')
       );
 
       await executeMuteKeywordsBatch(wordsToMute, {
@@ -1683,7 +1687,7 @@
   }
 
   // =========================================================================
-  // 8. METİN SEÇİMİ POPOVER YÖNETİMİ
+  // 8. TEXT SELECTION POPOVER CONTROLLER
   // =========================================================================
   let popoverEl = null;
   let primaryPopBtn = null;
@@ -1733,7 +1737,7 @@
 
       const phrase = currentSelectedText;
       isPopoverBusy = true;
-      primaryPopLabel.textContent = 'X ayarlarına ekleniyor...';
+      primaryPopLabel.textContent = 'Saving to X settings...';
 
       try {
         await executeMuteKeywordsBatch([phrase]);
@@ -1811,15 +1815,15 @@
 
     const shortWord = rawText.length > 20 ? rawText.substring(0, 18) + '...' : rawText;
     if (currentIndividualWords.length > 1) {
-      primaryPopLabel.textContent = `"${shortWord}" ifadesini sessize al`;
-      secondaryPopLabel.textContent = `Kelimeleri seç (${currentIndividualWords.length})`;
+      primaryPopLabel.textContent = `Mute phrase "${shortWord}"`;
+      secondaryPopLabel.textContent = `Select words (${currentIndividualWords.length})`;
       secondaryPopBtn.style.display = 'inline-flex';
     } else {
-      primaryPopLabel.textContent = `"${shortWord}" kelimesini sessize al`;
+      primaryPopLabel.textContent = `Mute "${shortWord}"`;
       secondaryPopBtn.style.display = 'none';
     }
 
-    // Gerçek genişliği ölçerek ekran sınırları içine hizala
+    // Measure actual popover width and clamp within viewport bounds
     popoverEl.style.visibility = 'hidden';
     popoverEl.classList.add('xqb-popover-show');
     const popRect = popoverEl.getBoundingClientRect();
@@ -1848,7 +1852,7 @@
   }
 
   // =========================================================================
-  // 9. BAŞLATMA: OLAY DİNLEYİCİLER & KULLANICI ADI TIKLAMA YAKALAYICI
+  // 9. INITIALIZATION: EVENT LISTENERS & USERNAME CLICK INTERCEPTOR
   // =========================================================================
   function initUIEvents() {
     injectStyles();
@@ -1856,7 +1860,7 @@
 
     if (typeof GM_registerMenuCommand === 'function') {
       try {
-        GM_registerMenuCommand('Toplu Kelime Sessize Al (X Ayarlarına Kaydet)', () => {
+        GM_registerMenuCommand('Bulk Mute Keywords (Save to X Settings)', () => {
           showMultiKeywordModal([], '');
         });
       } catch (_) {}
@@ -1876,7 +1880,7 @@
 
     win.addEventListener('scroll', hidePopover, { passive: true, capture: true });
 
-    // Kullanıcı Adı Tıklama Yakalayıcı
+    // Username click interceptor
     win.addEventListener(
       'click',
       (event) => {
@@ -1893,7 +1897,7 @@
         const userNameContainer = event.target.closest('[data-testid="User-Name"]');
         if (!userNameContainer) return;
 
-        // Zaman damgasına (/status/123) tıklandıysa normal tweet detayına gitmesine izin ver
+        // Allow normal navigation when clicking timestamps (/status/123) or analytics links
         if (clickedLink) {
           const clickedHref = clickedLink.getAttribute('href') || '';
           if (clickedHref.includes('/status/') || clickedHref.includes('/analytics')) return;
@@ -1928,7 +1932,7 @@
         event.stopPropagation();
         event.stopImmediatePropagation();
 
-        // Kullanıcı adını ve görünen adı çıkar
+        // Extract display name and @handle
         let displayName = '';
         let username = '';
         userNameContainer.querySelectorAll('span').forEach((sp) => {
@@ -1944,8 +1948,8 @@
         if (!username) username = usernameFromHref;
         if (!displayName) displayName = username;
 
-        // Alıntı Tweet (Quote Tweet) koruması:
-        // Yalnızca tıklanan User-Name ana tweet'in ilk User-Name başlığı ise DOM caret akışını kullan
+        // Quote Tweet guard:
+        // Only use the DOM caret flow when clicking the primary tweet author's User-Name
         const parentArticle = userNameContainer.closest('article[data-testid="tweet"]');
         let domTweetEl = null;
         let avatarUrl = '';
@@ -1961,13 +1965,13 @@
               parentArticle.querySelector('img[src*="profile_images"]');
             if (avatarImg) avatarUrl = avatarImg.src;
           } else {
-            // Alıntı tweet içindeki kullanıcı: kendi satırındaki küçük avatarı bul
+            // Quoted tweet author: find the smaller avatar within the quote header
             const quoteHeader = userNameContainer.parentElement?.parentElement;
             const quoteAvatar = quoteHeader?.querySelector('img[src*="profile_images"]');
             if (quoteAvatar) avatarUrl = quoteAvatar.src;
           }
         } else {
-          // Profil sayfası başlığı gibi article dışı yerler
+          // Profile header outside a tweet article
           const profileAvatar = document.querySelector(
             `a[href="/${username}/photo" i] img[src*="profile_images"]`
           );
@@ -1988,7 +1992,7 @@
       true
     );
 
-    console.log('[XQB v4.0.0] Yüklendi: Dinamik X.com API & Çoklu Kelime Sessize Alma Aktif.');
+    console.log('[XQB v4.0.1] Loaded: Dynamic X.com API & Multi-Keyword Muting Active.');
   }
 
   if (document.readyState === 'loading') {

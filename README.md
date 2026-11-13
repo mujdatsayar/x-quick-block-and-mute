@@ -1,76 +1,76 @@
-# X.com Hızlı Engelleme, Hesap ve Kelime Sessize Alma (Hepsi Bir Arada)
+# X.com Quick Block, Account & Keyword Mute (All-in-One)
 
-X (eski Twitter) üzerinde **hesap engelleme**, **hesap sessize alma** ve **kelime/ifade sessize alma** işlemlerini saniyelere indiren Tampermonkey / Violentmonkey kullanıcı betiği (`userscript`).
+A lightweight Tampermonkey / Violentmonkey userscript that turns **account blocking**, **account muting**, and **single/multi-word keyword muting** on X (formerly Twitter) into one-click actions.
 
-> **Önemli Fark:** Bu araç tweet'leri yalnızca tarayıcıda gizlemez; yaptığınız her işlem **doğrudan X hesabınızın resmi ayarlarına** kaydedilir (`Engellenen hesaplar`, `Sessize alınan hesaplar`, `Sessize alınan kelimeler`). Böylece telefon uygulamanız dahil tüm cihazlarınızda kalıcı olarak geçerli olur.
-
----
-
-## Neden Kullanışlı? (Pratiklik)
-
-Normalde X üzerinde:
-- Bir **kelimeyi** sessize almak için: *Daha fazla → Ayarlar ve gizlilik → Gizlilik ve güvenlik → Sessize al ve engelle → Sessize alınan kelimeler → Ekle → Kelime yaz → Süre/seçenek seç → Kaydet* (7-8 adım),
-- Bir **hesabı** engellemek için: *Üç nokta (`...`) → Engelle → Onayla* (3 adım, yanlış tıklama riski) gerekir.
-
-Bu eklenti ile:
-- **Kelime sessize alma:** Tweet içinde rahatsız olduğunuz **tek bir kelimeyi veya birden fazla kelimeyi fareyle seçin**, çıkan balona tıklayın. Anında `x.com/settings/muted_keywords` listenize eklenir!
-- **Hesap engelleme / sessize alma:** Akışta herhangi bir **kullanıcı adına tıkladığınızda** şık bir hızlı işlem penceresi açılır; **Profiline Git**, **Bu Hesabı Sessize Al** veya **Bu Hesabı Engelle** seçeneklerinden birini tek tıkla seçebilirsiniz.
+> **Key Difference:** This script does not merely hide posts locally in your browser. Every action is **saved directly to your official X account settings** (`Blocked accounts`, `Muted accounts`, and `Muted words`), so your filters sync permanently across all your devices, including the mobile app.
 
 ---
 
-## Özellikler
+## Why It's Useful
 
-- **Tek ve Çoklu Kelime Sessize Alma:**
-  - **Tek kelime seçimi:** Tek tıkla doğrudan X'in *Sessize alınan kelimeler* ayarlarına ekler.
-  - **Çoklu kelime seçimi:** Birden fazla kelime seçtiğinizde iki seçenek sunar:
-    1. *İfadeyi sessize al* (seçili kalıbı tek kural olarak kaydeder)
-    2. *Kelimeleri seç* (seçilen metindeki kelimeleri ayrı ayrı etiket/chip olarak listeler; istediklerinizi işaretleyip, süre ve *"Takip edilenler hariç"* seçeneğini belirleyerek hepsini tek seferde X ayarlarına kaydeder)
-  - **Toplu Kelime Ekleme Menüsü:** Tampermonkey eklenti simgesi → *"Toplu Kelime Sessize Al (X Ayarlarına Kaydet)"* üzerinden metin seçmeden de virgülle birden fazla kelime ekleyebilirsiniz.
-- **Hızlı Hesap İşlemleri (Profil / Sessize Al / Engelle):**
-  - X'in resmi akışını ve resmi API uç noktalarını (`/1.1/blocks/create`, `/1.1/mutes/users/create`) kullanır.
-  - Yanlışlıkla engelleme veya sessize alma durumunda bildirim çubuğunda **Geri Al** butonu sunar.
-  - **Alıntı Tweet (Quote Tweet) Koruması:** Alıntı yapılan kişinin adına tıkladığınızda yanlışlıkla dıştaki tweet sahibini değil, doğrudan alıntılanan hesabı hedefler.
-  - **Kendi Hesabı Koruması:** Kendi kullanıcı adınıza tıkladığınızda engelleme/sessize alma butonlarını gizler.
-  - **Hızlı Profil Geçişi:** *Profiline Git* dediğinizde sayfayı baştan yüklemeden X'in kendi SPA yönlendiricisiyle anında profile geçer.
-- **Akıllı Akış Temizliği & Tema Uyumu:**
-  - DOM'dan eleman silmek yerine React sanal listesiyle uyumlu gizleme uygular; sayfa kaydırıldıkça yeni yüklenen eşleşen tweet'leri de gizler.
-  - X'in **Açık (Light)**, **Loş (Dim)** ve **Karanlık (Lights Out)** temalarına otomatik uyum sağlar.
-- **Güncellemelere Dayanıklı Dinamik Mimari:**
-  - Sabit Webpack modül ID'lerine bağımlı değildir; X'in `x-client-transaction-id` üretecini ve Redux store'unu çalışma zamanında dinamik olarak tespit eder.
+On native X:
+- Muting a **keyword** requires: *More → Settings and privacy → Privacy and safety → Mute and block → Muted words → Add → Type word → Choose duration/options → Save* (7–8 steps).
+- Blocking an **account** requires: *Three dots (`...`) → Block → Confirm* (3 steps, easy to misclick).
+
+With this userscript:
+- **Keyword muting:** Simply **highlight a word or phrase with your mouse** inside any post and click the floating popover. It is immediately saved to `x.com/settings/muted_keywords`.
+- **Account blocking / muting:** **Click any username or handle** in your timeline to open a clean quick-action modal with **Go to Profile**, **Mute Account**, and **Block Account**.
 
 ---
 
-## Kurulum
+## Features
 
-1. Tarayıcınıza **[Tampermonkey](https://www.tampermonkey.net/)** (Chrome, Edge, Brave, Firefox) veya **Violentmonkey** eklentisini kurun.
-2. Tek tıkla kurulum için **[Buraya Tıklayın (x-quick-block-and-mute.user.js)](https://raw.githubusercontent.com/mujdatsayar/x-quick-block-and-mute/main/x-quick-block-and-mute.user.js)** — Tampermonkey otomatik olarak kurulum ekranını açacaktır.
-   *(Alternatif olarak [`x-quick-block-and-mute.user.js`](./x-quick-block-and-mute.user.js) dosyasını açıp içeriğini kopyalayarak Tampermonkey Dashboard'da yeni bir betiğe yapıştırıp `Ctrl + S` ile kaydedebilirsiniz.)*
-3. Açık bir `https://x.com/` sekmeniz varsa sayfayı yenileyin (`F5`).
+- **Single & Multi-Word Keyword Muting:**
+  - **Single word selection:** Adds the highlighted word directly to X's *Muted words* settings in one click.
+  - **Multi-word selection:** Gives you two options in the floating popover:
+    1. *Mute phrase* (saves the entire selected phrase as one rule)
+    2. *Select words* (splits the selection into toggleable word chips so you can check multiple words, add extra comma-separated keywords, configure mute duration & *"Exclude followed accounts"*, and save them all to X settings at once)
+  - **Bulk Keyword Menu:** Click the Tampermonkey extension icon → *"Bulk Mute Keywords (Save to X Settings)"* to mute comma-separated keywords anytime without selecting text first.
+- **Quick Account Actions (Profile / Mute / Block):**
+  - Uses X's native UI flow and official API endpoints (`/1.1/blocks/create.json`, `/1.1/mutes/users/create.json`).
+  - Includes an **Undo** button in the confirmation toast in case of an accidental mute or block.
+  - **Quote Tweet Protection:** Clicking the author of a quoted post accurately targets the quoted account instead of the outer post author.
+  - **Self-Account Guard:** Hides mute/block buttons when you click your own username.
+  - **Instant SPA Navigation:** Clicking *Go to Profile* uses X's built-in client router without a full page reload.
+- **Smart Feed Cleanup & Auto Theme Sync:**
+  - Safely hides matching posts in a React-virtualizer-friendly way (without breaking DOM recycling) and continues hiding newly loaded matching posts as you scroll.
+  - Automatically adapts to X's **Light**, **Dim**, and **Lights Out** themes.
+- **Update-Resilient Dynamic Engine:**
+  - Avoids hardcoded Webpack module IDs; dynamically discovers X's `x-client-transaction-id` generator and Redux store at runtime.
 
 ---
 
-## Nasıl Kullanılır?
+## Installation
 
-| İşlem | Nasıl Yapılır? | Nereye Kaydedilir? |
+1. Install **[Tampermonkey](https://www.tampermonkey.net/)** (Chrome, Edge, Brave, Firefox) or **Violentmonkey** in your browser.
+2. For one-click installation, **[Click Here (x-quick-block-and-mute.user.js)](https://raw.githubusercontent.com/mujdatsayar/x-quick-block-and-mute/main/x-quick-block-and-mute.user.js)** — Tampermonkey will automatically open the installation prompt.
+   *(Alternatively, open [`x-quick-block-and-mute.user.js`](./x-quick-block-and-mute.user.js), copy its contents into a new script in the Tampermonkey Dashboard, and press `Ctrl + S`.)*
+3. If you already have `https://x.com/` open, refresh the tab (`F5`).
+
+---
+
+## How to Use
+
+| Action | How to Do It | Saved In X Settings |
 | :--- | :--- | :--- |
-| **Tek kelime sessize al** | Tweet metninde kelimeyi fareyle seçin → çıkan balona tıklayın | `x.com/settings/muted_keywords` |
-| **Birden fazla kelime sessize al** | Birkaç kelime/cümle seçin → **Kelimeleri seç** butonuna basın → istediklerinizi işaretleyip kaydedin | `x.com/settings/muted_keywords` |
-| **Toplu kelime ekle** | Tarayıcıdaki Tampermonkey simgesi → *Toplu Kelime Sessize Al* | `x.com/settings/muted_keywords` |
-| **Hesap engelle / sessize al** | Akıştaki kullanıcı adına tıklayın → *Bu Hesabı Sessize Al* veya *Bu Hesabı Engelle* | `x.com/settings/muted/all` / `x.com/settings/blocked/all` |
-| **Doğrudan profile git** | `Ctrl + Tık` (veya modalda *Profiline Git*) | — |
+| **Mute a single word** | Highlight a word in a post → click the floating button | `x.com/settings/muted_keywords` |
+| **Mute multiple words** | Highlight a phrase → click **Select words** → toggle chips & save | `x.com/settings/muted_keywords` |
+| **Bulk add keywords** | Click Tampermonkey icon → *Bulk Mute Keywords* | `x.com/settings/muted_keywords` |
+| **Block / Mute account** | Click any username in the feed → *Mute Account* or *Block Account* | `x.com/settings/muted/all` / `x.com/settings/blocked/all` |
+| **Open profile directly** | `Ctrl + Click` (or click *Go to Profile* in the modal) | — |
 
-> **İpucu:** Tweet'in sağındaki tarih/saat bağlantısına (`· 2s`) tıkladığınızda normal şekilde tweet detayına gitmeye devam edersiniz; modal yalnızca kullanıcı adı/handle kısmına tıklandığında açılır.
-
----
-
-## Gizlilik ve Güvenlik
-
-- Betik **tamamen tarayıcınız içinde** çalışır; harici hiçbir sunucuya, üçüncü parti API'ye veya takip servisine veri göndermez.
-- Tüm istekler doğrudan kendi tarayıcı oturumunuz (`x.com` / `api.x.com`) üzerinden, X'in kendi CSRF (`ct0`) ve `x-client-transaction-id` imzalarıyla gerçekleştirilir.
-- Kullanıcı arayüzü `TrustedHTML` / XSS riskine karşı `innerHTML` yerine güvenli DOM API'leri (`createElement` / `textContent`) ile oluşturulur.
+> **Tip:** Clicking the timestamp link next to a username (`· 2h`) still opens the post details normally; the quick modal only triggers when clicking the display name or `@handle`.
 
 ---
 
-## Lisans
+## Privacy & Security
+
+- Runs **100% locally inside your browser**; never sends data to any external server, third-party API, or analytics service.
+- All requests go directly through your own authenticated browser session (`x.com` / `api.x.com`) using X's native CSRF (`ct0`) and `x-client-transaction-id` headers.
+- All UI elements are built with safe DOM APIs (`createElement` / `textContent`) rather than `innerHTML` for `TrustedHTML` / XSS compliance.
+
+---
+
+## License
 
 [MIT](./LICENSE)

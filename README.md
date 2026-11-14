@@ -24,8 +24,9 @@ With this userscript:
   - **Single word selection:** Adds the highlighted word directly to X's *Muted words* settings in one click.
   - **Multi-word selection:** Gives you two options in the floating popover:
     1. *Mute phrase* (saves the entire selected phrase as one rule)
-    2. *Select words* (splits the selection into toggleable word chips so you can check multiple words, add extra comma-separated keywords, configure mute duration & *"Exclude followed accounts"*, and save them all to X settings at once)
+    2. *Select words* (splits the selection into toggleable word chips so you can check multiple words, add extra comma-separated keywords, configure mute duration & scope (**"From: Anyone (incl. followed)"** by default, or *"From: Non-followed only"*), and save them all to X settings at once)
   - **Bulk Keyword Menu:** Click the Tampermonkey extension icon → *"Bulk Mute Keywords (Save to X Settings)"* to mute comma-separated keywords anytime without selecting text first.
+  - **Bulk Fix Existing Muted Words:** Click the Tampermonkey extension icon → *"Fix Existing Muted Words (Set to "From anyone")"* (or the button inside the Bulk Mute modal) to scan your saved X muted keywords and batch-update legacy entries from *"From people you don't follow"* to **"From anyone"** (with rate-limit cooldown handling and duration preservation).
 - **Quick Account Actions (Profile / Mute / Block):**
   - Uses X's native UI flow and official API endpoints (`/1.1/blocks/create.json`, `/1.1/mutes/users/create.json`).
   - Includes an **Undo** button in the confirmation toast in case of an accidental mute or block.
@@ -56,6 +57,7 @@ With this userscript:
 | **Mute a single word** | Highlight a word in a post → click the floating button | `x.com/settings/muted_keywords` |
 | **Mute multiple words** | Highlight a phrase → click **Select words** → toggle chips & save | `x.com/settings/muted_keywords` |
 | **Bulk add keywords** | Click Tampermonkey icon → *Bulk Mute Keywords* | `x.com/settings/muted_keywords` |
+| **Fix existing muted words** | Click Tampermonkey icon → *Fix Existing Muted Words (Set to "From anyone")* | `x.com/settings/muted_keywords` |
 | **Block / Mute account** | Click any username in the feed → *Mute Account* or *Block Account* | `x.com/settings/muted/all` / `x.com/settings/blocked/all` |
 | **Open profile directly** | `Ctrl + Click` (or click *Go to Profile* in the modal) | — |
 

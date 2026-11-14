@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         X.com Quick Block, Account & Keyword Mute (All-in-One)
 // @namespace    https://github.com/mujdatsayar/x-quick-block-and-mute
-// @version      4.0.1
-// @description  Click any username on X.com to open Profile / Mute / Block actions; highlight single or multiple words to save them directly to your official X settings (Muted words / Muted accounts / Blocked accounts).
+// @version      4.1.0
+// @description  Click any username on X.com to open Profile / Mute / Block actions; highlight single or multiple words to save them directly to your official X settings ("From anyone" by default), and bulk-fix existing muted words.
 // @author       Antigravity
 // @homepageURL  https://github.com/mujdatsayar/x-quick-block-and-mute
 // @supportURL   https://github.com/mujdatsayar/x-quick-block-and-mute/issues
@@ -29,18 +29,29 @@
   // =========================================================================
   // 0. SETTINGS & RUNTIME STATE
   // =========================================================================
-  const SETTINGS_KEY = 'xqb_settings_v4';
+  const SETTINGS_KEY = 'xqb_settings_v4_1';
+  const LEGACY_SETTINGS_KEY = 'xqb_settings_v4';
   const DEFAULT_SETTINGS = {
     muteDurationMs: '', // '' = Forever, '86400000' = 24 hours, '604800000' = 7 days, '2592000000' = 30 days
-    excludeFollowing: true,
+    excludeFollowing: false, // false = "From anyone" (including followed accounts)
     muteSurfaces: 'notifications,home_timeline,tweet_replies',
     hideLocallyAfterApi: true
   };
 
   function getSettings() {
     try {
-      const saved = typeof GM_getValue === 'function' ? GM_getValue(SETTINGS_KEY, null) : null;
-      return saved ? { ...DEFAULT_SETTINGS, ...saved } : { ...DEFAULT_SETTINGS };
+      if (typeof GM_getValue === 'function') {
+        const saved = GM_getValue(SETTINGS_KEY, null);
+        if (saved) return { ...DEFAULT_SETTINGS, ...saved };
+        // One-time migration from v4: keep duration/surfaces, switch excludeFollowing to false ("From anyone")
+        const legacy = GM_getValue(LEGACY_SETTINGS_KEY, null);
+        if (legacy) {
+          const migrated = { ...DEFAULT_SETTINGS, ...legacy, excludeFollowing: false };
+          saveSettings(migrated);
+          return migrated;
+        }
+      }
+      return { ...DEFAULT_SETTINGS };
     } catch (_) {
       return { ...DEFAULT_SETTINGS };
     }
@@ -444,6 +455,70 @@
       border-radius: 10px;
       padding: 8px 10px;
       cursor: pointer;
+    }
+
+    .xqb-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .xqb-stat-box {
+      background: var(--xqb-surface);
+      border: 1px solid var(--xqb-border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      text-align: center;
+    }
+    .xqb-stat-val {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--xqb-text);
+      line-height: 1.2;
+    }
+    .xqb-stat-lbl {
+      font-size: 11px;
+      color: var(--xqb-muted);
+      margin-top: 2px;
+    }
+    .xqb-progress-wrap {
+      width: 100%;
+      height: 8px;
+      border-radius: 9999px;
+      background: var(--xqb-surface);
+      border: 1px solid var(--xqb-border);
+      overflow: hidden;
+      margin: 10px 0 8px 0;
+    }
+    .xqb-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--xqb-accent);
+      transition: width 0.2s ease;
+    }
+    .xqb-status-line {
+      font-size: 12.5px;
+      color: var(--xqb-muted);
+      margin-bottom: 12px;
+      min-height: 18px;
+    }
+    .xqb-link-btn {
+      background: transparent;
+      border: 1px dashed var(--xqb-border);
+      color: var(--xqb-accent);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      margin-top: 10px;
+      transition: background 0.14s, border-color 0.14s;
+    }
+    .xqb-link-btn:hover {
+      background: rgba(29, 155, 240, 0.1);
+      border-color: var(--xqb-accent);
     }
 
     /* === NOTIFICATION TOAST === */
@@ -900,37 +975,51 @@
     return '';
   }
 
-  async function callXApi(endpointPath, paramsObj) {
+  async function callXApi(endpointPath, paramsObj = {}, method = 'POST') {
     const ct0 = getCookie('ct0');
     if (!ct0) {
       return { ok: false, status: 0, error: 'CSRF token (ct0) not found. Are you signed in?' };
     }
 
-    const body = new URLSearchParams();
-    for (const [k, v] of Object.entries(paramsObj)) {
-      if (v !== undefined && v !== null) {
-        body.append(k, String(v));
+    const upperMethod = String(method || 'POST').toUpperCase();
+    const qs = new URLSearchParams();
+    if (paramsObj && typeof paramsObj === 'object') {
+      for (const [k, v] of Object.entries(paramsObj)) {
+        if (v !== undefined && v !== null) {
+          qs.append(k, String(v));
+        }
       }
     }
+    const serialized = qs.toString();
 
     const sendToBase = async (baseUrl, signPath) => {
-      const tid = await generateTransactionId(signPath, 'POST');
+      const requestPath =
+        upperMethod === 'GET' && serialized
+          ? `${signPath}${signPath.includes('?') ? '&' : '?'}${serialized}`
+          : signPath;
+
+      const tid = await generateTransactionId(signPath, upperMethod);
       const headers = {
         authorization: capturedBearer || DEFAULT_BEARER,
         'x-csrf-token': ct0,
         'x-twitter-auth-type': 'OAuth2Session',
-        'x-twitter-active-user': 'yes',
-        'content-type': 'application/x-www-form-urlencoded'
+        'x-twitter-active-user': 'yes'
       };
+      if (upperMethod !== 'GET') {
+        headers['content-type'] = 'application/x-www-form-urlencoded';
+      }
       if (tid) headers['x-client-transaction-id'] = tid;
 
-      const res = await win.fetch(`${baseUrl}${signPath}`, {
-        method: 'POST',
+      const fetchOpts = {
+        method: upperMethod,
         credentials: 'include',
-        headers,
-        body: body.toString()
-      });
+        headers
+      };
+      if (upperMethod !== 'GET') {
+        fetchOpts.body = serialized;
+      }
 
+      const res = await win.fetch(`${baseUrl}${requestPath}`, fetchOpts);
       const data = await res.json().catch(() => null);
       if (res.ok) {
         return { ok: true, status: res.status, data };
@@ -942,8 +1031,12 @@
         return { ok: true, alreadyExists: true, status: res.status, data };
       }
 
+      const retryAfterSec = parseInt(res.headers?.get?.('retry-after') || '0', 10) || 0;
+      const resetEpoch = parseInt(res.headers?.get?.('x-rate-limit-reset') || '0', 10) || 0;
+
       console.warn('[XQB Debug] API request failed:', {
-        url: `${baseUrl}${signPath}`,
+        url: `${baseUrl}${requestPath}`,
+        method: upperMethod,
         hasTid: Boolean(tid),
         tidLen: tid ? tid.length : 0,
         status: res.status,
@@ -951,7 +1044,7 @@
         error: errMsg
       });
 
-      return { ok: false, status: res.status, code: errCode, error: errMsg, data };
+      return { ok: false, status: res.status, code: errCode, error: errMsg, retryAfterSec, resetEpoch, data };
     };
 
     try {
@@ -1098,6 +1191,95 @@
     }
 
     return { ...apiRes, via: 'api' };
+  }
+
+  function normalizeListField(val) {
+    if (Array.isArray(val)) return val.map((v) => String(v).trim()).filter(Boolean);
+    if (typeof val === 'string') return val.split(',').map((v) => v.trim()).filter(Boolean);
+    return [];
+  }
+
+  function keywordHasExcludeFollowing(kwObj) {
+    return normalizeListField(kwObj?.mute_options).includes('exclude_following_accounts');
+  }
+
+  function keywordMissingDefaultSurfaces(kwObj) {
+    const surfaces = normalizeListField(kwObj?.mute_surfaces);
+    return (
+      !surfaces.includes('home_timeline') ||
+      !surfaces.includes('notifications') ||
+      !surfaces.includes('tweet_replies')
+    );
+  }
+
+  async function fetchAllMutedKeywords() {
+    const res = await callXApi('/i/api/1.1/mutes/keywords/list.json', {}, 'GET');
+    if (res.ok) {
+      const list = Array.isArray(res.data?.muted_keywords)
+        ? res.data.muted_keywords
+        : Array.isArray(res.data)
+          ? res.data
+          : [];
+      return { ok: true, keywords: list };
+    }
+    return { ok: false, keywords: [], error: res.error || `HTTP ${res.status}` };
+  }
+
+  async function updateKeywordToAnyoneOnX(kwObj, { ensureAllSurfaces = true } = {}) {
+    const settings = getSettings();
+    const existingSurfaces = normalizeListField(kwObj?.mute_surfaces);
+    const mergedSurfaces = ensureAllSurfaces
+      ? Array.from(new Set([...existingSurfaces, 'notifications', 'home_timeline', 'tweet_replies']))
+      : existingSurfaces.length
+        ? existingSurfaces
+        : normalizeListField(settings.muteSurfaces);
+
+    const preservedOptions = normalizeListField(kwObj?.mute_options).filter(
+      (opt) => opt !== 'exclude_following_accounts'
+    );
+
+    const validUntilNum = Number(kwObj?.valid_until || 0);
+    const remainingDuration =
+      validUntilNum > Date.now() ? String(Math.max(60000, validUntilNum - Date.now())) : '';
+
+    const payload = {
+      id: kwObj.id,
+      keyword: kwObj.keyword,
+      mute_surfaces: mergedSurfaces.join(','),
+      mute_options: preservedOptions.join(','),
+      duration: remainingDuration
+    };
+
+    const updRes = await callXApi('/i/api/1.1/mutes/keywords/update.json', payload, 'POST');
+    if (updRes.ok && !keywordHasExcludeFollowing(updRes.data)) {
+      return { ...updRes, via: 'update' };
+    }
+
+    // Do not try destroy+create if rate-limited or auth error
+    if (updRes.status === 429 || updRes.code === 88 || updRes.status === 401 || updRes.status === 403 || updRes.status === 0) {
+      return updRes;
+    }
+
+    // Fallback: destroy + recreate if update.json rejected a legacy entry shape or ignored empty mute_options
+    if (kwObj.id && (updRes.status === 400 || updRes.status === 404 || updRes.ok)) {
+      const delRes = await callXApi('/i/api/1.1/mutes/keywords/destroy.json', { ids: kwObj.id }, 'POST');
+      if (delRes.ok) {
+        const reRes = await callXApi(
+          '/i/api/1.1/mutes/keywords/create.json',
+          {
+            keyword: kwObj.keyword,
+            mute_surfaces: payload.mute_surfaces,
+            mute_options: payload.mute_options,
+            duration: payload.duration
+          },
+          'POST'
+        );
+        if (reRes.ok) return { ...reRes, via: 'destroy+create' };
+        return reRes;
+      }
+    }
+
+    return updRes;
   }
 
   // =========================================================================
@@ -1251,15 +1433,16 @@
       if (e.key === 'Escape') closeModal();
     };
 
-    const closeModal = () => {
+    const closeModal = (force = false) => {
+      if (!force && modal.dataset.xqbBusy === '1') return;
       document.removeEventListener('keydown', handleEsc);
       overlay.classList.remove('xqb-visible');
       setTimeout(() => overlay.remove(), 200);
     };
 
-    closeBtn.addEventListener('click', closeModal);
+    closeBtn.addEventListener('click', () => closeModal(false));
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeModal();
+      if (e.target === overlay) closeModal(false);
     });
     document.addEventListener('keydown', handleEsc);
 
@@ -1592,7 +1775,7 @@
     });
     inputRow.append(input, addBtn);
 
-    // Duration and exclude-following options
+    // Duration and scope ("From anyone" vs "Non-followed only") options
     const optionsGrid = document.createElement('div');
     optionsGrid.className = 'xqb-options-grid';
 
@@ -1611,16 +1794,23 @@
       durationSelect.appendChild(o);
     });
 
-    const followLabel = document.createElement('label');
-    followLabel.className = 'xqb-checkbox-wrap';
-    const followCheck = document.createElement('input');
-    followCheck.type = 'checkbox';
-    followCheck.checked = settings.excludeFollowing;
-    const followSpan = document.createElement('span');
-    followSpan.textContent = 'Exclude followed accounts';
-    followLabel.append(followCheck, followSpan);
+    const scopeSelect = document.createElement('select');
+    scopeSelect.className = 'xqb-select';
+    [
+      { val: 'anyone', label: 'From: Anyone (incl. followed)' },
+      { val: 'exclude_following', label: 'From: Non-followed only' }
+    ].forEach((opt) => {
+      const o = document.createElement('option');
+      o.value = opt.val;
+      o.textContent = opt.label;
+      const shouldSelect = settings.excludeFollowing
+        ? opt.val === 'exclude_following'
+        : opt.val === 'anyone';
+      if (shouldSelect) o.selected = true;
+      scopeSelect.appendChild(o);
+    });
 
-    optionsGrid.append(durationSelect, followLabel);
+    optionsGrid.append(durationSelect, scopeSelect);
 
     const actions = document.createElement('div');
     actions.className = 'xqb-actions';
@@ -1635,10 +1825,11 @@
         fullPhrase.length > 26 ? fullPhrase.slice(0, 24) + '...' : fullPhrase
       }"`;
       phraseBtn.addEventListener('click', async () => {
+        const excludeFollowing = scopeSelect.value === 'exclude_following';
         const nextSettings = {
           ...settings,
           muteDurationMs: durationSelect.value,
-          excludeFollowing: followCheck.checked
+          excludeFollowing
         };
         saveSettings(nextSettings);
 
@@ -1647,7 +1838,7 @@
         await executeMuteKeywordsBatch([fullPhrase], {
           duration: durationSelect.value,
           mute_surfaces: settings.muteSurfaces,
-          mute_options: followCheck.checked ? 'exclude_following_accounts' : ''
+          mute_options: excludeFollowing ? 'exclude_following_accounts' : ''
         });
         closeModal();
       });
@@ -1660,10 +1851,11 @@
         .map(([w]) => w);
       if (!wordsToMute.length) return;
 
+      const excludeFollowing = scopeSelect.value === 'exclude_following';
       const nextSettings = {
         ...settings,
         muteDurationMs: durationSelect.value,
-        excludeFollowing: followCheck.checked
+        excludeFollowing
       };
       saveSettings(nextSettings);
 
@@ -1676,14 +1868,328 @@
       await executeMuteKeywordsBatch(wordsToMute, {
         duration: durationSelect.value,
         mute_surfaces: settings.muteSurfaces,
-        mute_options: followCheck.checked ? 'exclude_following_accounts' : ''
+        mute_options: excludeFollowing ? 'exclude_following_accounts' : ''
       });
       closeModal();
     });
 
-    modal.append(title, desc, chipsWrap, inputRow, optionsGrid, actions);
+    const fixExistingBtn = document.createElement('button');
+    fixExistingBtn.type = 'button';
+    fixExistingBtn.className = 'xqb-link-btn';
+    fixExistingBtn.textContent = 'Fix Existing Muted Words (Set to "From anyone")...';
+    fixExistingBtn.addEventListener('click', () => {
+      closeModal(true);
+      showBulkFixKeywordsModal();
+    });
+
+    modal.append(title, desc, chipsWrap, inputRow, optionsGrid, actions, fixExistingBtn);
     renderChips();
     updateSubmitLabel();
+  }
+
+  function showBulkFixKeywordsModal() {
+    const { modal, closeModal } = createOverlayBase(true);
+
+    const title = document.createElement('h3');
+    title.className = 'xqb-modal-title';
+    title.textContent = 'Bulk Fix Existing Muted Words';
+
+    const desc = document.createElement('p');
+    desc.className = 'xqb-modal-desc';
+    desc.textContent =
+      'Updates your existing X muted keywords from "From people you don\'t follow" to "From anyone" so followed accounts are also muted.';
+
+    const statsGrid = document.createElement('div');
+    statsGrid.className = 'xqb-stats-grid';
+
+    const makeStatBox = (lblText) => {
+      const box = document.createElement('div');
+      box.className = 'xqb-stat-box';
+      const val = document.createElement('div');
+      val.className = 'xqb-stat-val';
+      val.textContent = '—';
+      const lbl = document.createElement('div');
+      lbl.className = 'xqb-stat-lbl';
+      lbl.textContent = lblText;
+      box.append(val, lbl);
+      return { box, val };
+    };
+
+    const totalStat = makeStatBox('Total Saved');
+    const okStat = makeStatBox('Already "Anyone"');
+    const fixStat = makeStatBox('Needs Fix');
+    statsGrid.append(totalStat.box, okStat.box, fixStat.box);
+
+    const chipsWrap = document.createElement('div');
+    chipsWrap.className = 'xqb-chips';
+    chipsWrap.style.marginBottom = '10px';
+
+    const optWrap = document.createElement('div');
+    optWrap.style.display = 'flex';
+    optWrap.style.flexDirection = 'column';
+    optWrap.style.gap = '6px';
+    optWrap.style.marginBottom = '10px';
+
+    const makeCheckRow = (labelText, checked) => {
+      const lbl = document.createElement('label');
+      lbl.className = 'xqb-checkbox-wrap';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = checked;
+      const sp = document.createElement('span');
+      sp.textContent = labelText;
+      lbl.append(cb, sp);
+      return { lbl, cb };
+    };
+
+    const surfacesOpt = makeCheckRow(
+      'Also ensure Home timeline, Notifications & Replies are enabled',
+      true
+    );
+    const forceAllOpt = makeCheckRow(
+      'Force re-save all keywords (even if already "From anyone")',
+      false
+    );
+    optWrap.append(surfacesOpt.lbl, forceAllOpt.lbl);
+
+    const progressWrap = document.createElement('div');
+    progressWrap.className = 'xqb-progress-wrap';
+    progressWrap.style.display = 'none';
+    const progressFill = document.createElement('div');
+    progressFill.className = 'xqb-progress-fill';
+    progressWrap.appendChild(progressFill);
+
+    const statusLine = document.createElement('div');
+    statusLine.className = 'xqb-status-line';
+    statusLine.textContent = 'Loading muted keywords from X...';
+
+    const actions = document.createElement('div');
+    actions.className = 'xqb-actions';
+
+    const startBtn = document.createElement('button');
+    startBtn.type = 'button';
+    startBtn.className = 'xqb-btn xqb-btn-block';
+    startBtn.disabled = true;
+    startBtn.style.opacity = '0.5';
+    startBtn.textContent = 'Loading...';
+
+    const stopBtn = document.createElement('button');
+    stopBtn.type = 'button';
+    stopBtn.className = 'xqb-btn xqb-btn-profile';
+    stopBtn.textContent = 'Stop';
+    stopBtn.style.display = 'none';
+
+    const retryFailedBtn = document.createElement('button');
+    retryFailedBtn.type = 'button';
+    retryFailedBtn.className = 'xqb-btn xqb-btn-mute';
+    retryFailedBtn.style.display = 'none';
+
+    const reloadBtn = document.createElement('button');
+    reloadBtn.type = 'button';
+    reloadBtn.className = 'xqb-link-btn';
+    reloadBtn.textContent = 'Refresh List from X';
+    reloadBtn.style.display = 'none';
+
+    actions.append(startBtn, stopBtn, retryFailedBtn);
+    modal.append(title, desc, statsGrid, chipsWrap, optWrap, progressWrap, statusLine, actions, reloadBtn);
+
+    let allKeywords = [];
+    let failedQueue = [];
+    let isRunning = false;
+    let stopRequested = false;
+
+    const getTargetList = () => {
+      const ensureSurfaces = surfacesOpt.cb.checked;
+      const forceAll = forceAllOpt.cb.checked;
+      return allKeywords.filter((kw) => {
+        if (forceAll) return true;
+        if (keywordHasExcludeFollowing(kw)) return true;
+        if (ensureSurfaces && keywordMissingDefaultSurfaces(kw)) return true;
+        return false;
+      });
+    };
+
+    const renderSummary = () => {
+      const targets = getTargetList();
+      const alreadyAnyoneCount = allKeywords.filter((kw) => !keywordHasExcludeFollowing(kw)).length;
+
+      totalStat.val.textContent = String(allKeywords.length);
+      okStat.val.textContent = String(alreadyAnyoneCount);
+      fixStat.val.textContent = String(targets.length);
+
+      chipsWrap.replaceChildren();
+      const preview = targets.slice(0, 24);
+      preview.forEach((kw) => {
+        const chip = document.createElement('span');
+        chip.className = 'xqb-chip';
+        chip.style.cursor = 'default';
+        chip.textContent = kw.keyword;
+        chipsWrap.appendChild(chip);
+      });
+      if (targets.length > 24) {
+        const more = document.createElement('span');
+        more.className = 'xqb-chip xqb-chip-active';
+        more.style.cursor = 'default';
+        more.textContent = `+${targets.length - 24} more`;
+        chipsWrap.appendChild(more);
+      }
+
+      if (!isRunning) {
+        if (targets.length === 0) {
+          startBtn.disabled = true;
+          startBtn.style.opacity = '0.5';
+          startBtn.textContent = 'All muted keywords are already updated';
+          if (allKeywords.length > 0) {
+            statusLine.textContent = 'Every muted word already applies to "Anyone".';
+          }
+        } else {
+          startBtn.disabled = false;
+          startBtn.style.opacity = '1';
+          startBtn.textContent = `Update ${targets.length} Muted Word${targets.length > 1 ? 's' : ''} to "From anyone"`;
+          statusLine.textContent = `Ready to update ${targets.length} muted keyword(s). Keeps existing durations.`;
+        }
+      }
+    };
+
+    const loadList = async () => {
+      if (!modal.isConnected) return;
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.5';
+      startBtn.textContent = 'Loading...';
+      reloadBtn.style.display = 'none';
+      retryFailedBtn.style.display = 'none';
+      statusLine.textContent = 'Fetching muted keywords from X...';
+
+      const res = await fetchAllMutedKeywords();
+      if (!modal.isConnected) return;
+      if (!res.ok) {
+        statusLine.textContent = `Failed to load list: ${res.error}`;
+        reloadBtn.style.display = 'block';
+        startBtn.textContent = 'Retry Required';
+        return;
+      }
+
+      allKeywords = res.keywords;
+      reloadBtn.style.display = 'block';
+      renderSummary();
+    };
+
+    const runBatch = async (queue) => {
+      if (!queue.length || isRunning) return;
+      isRunning = true;
+      stopRequested = false;
+      modal.dataset.xqbBusy = '1';
+
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.6';
+      surfacesOpt.cb.disabled = true;
+      forceAllOpt.cb.disabled = true;
+      reloadBtn.style.display = 'none';
+      retryFailedBtn.style.display = 'none';
+      stopBtn.style.display = 'flex';
+      progressWrap.style.display = 'block';
+      progressFill.style.width = '0%';
+
+      let updatedCount = 0;
+      const nextFailed = [];
+      const ensureAllSurfaces = surfacesOpt.cb.checked;
+
+      for (let i = 0; i < queue.length; i++) {
+        if (stopRequested || !modal.isConnected) break;
+        const kwObj = queue[i];
+        statusLine.textContent = `[${i + 1}/${queue.length}] Updating "${kwObj.keyword}"...`;
+
+        let res = await updateKeywordToAnyoneOnX(kwObj, { ensureAllSurfaces });
+
+        // Handle X rate limit (HTTP 429 or error code 88) politely with countdown + auto-retry once
+        if (!res.ok && (res.status === 429 || res.code === 88) && !stopRequested && modal.isConnected) {
+          let waitSec = 60;
+          if (res.retryAfterSec > 0) {
+            waitSec = Math.min(res.retryAfterSec + 2, 300);
+          } else if (res.resetEpoch > 0) {
+            const diff = Math.ceil(res.resetEpoch - Date.now() / 1000);
+            if (diff > 0) waitSec = Math.min(diff + 2, 300);
+          }
+          for (let s = waitSec; s > 0; s--) {
+            if (stopRequested || !modal.isConnected) break;
+            statusLine.textContent = `Rate limited by X. Resuming in ${s}s (${i + 1}/${queue.length})...`;
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+          if (!stopRequested && modal.isConnected) {
+            res = await updateKeywordToAnyoneOnX(kwObj, { ensureAllSurfaces });
+          }
+        }
+
+        if (res.ok) {
+          updatedCount++;
+          const idx = allKeywords.findIndex((k) => k.id === kwObj.id && k.keyword === kwObj.keyword);
+          if (idx !== -1) {
+            allKeywords[idx] = {
+              ...allKeywords[idx],
+              mute_options: normalizeListField(allKeywords[idx].mute_options)
+                .filter((o) => o !== 'exclude_following_accounts')
+                .join(','),
+              mute_surfaces: ensureAllSurfaces
+                ? Array.from(
+                    new Set([
+                      ...normalizeListField(allKeywords[idx].mute_surfaces),
+                      'notifications',
+                      'home_timeline',
+                      'tweet_replies'
+                    ])
+                  ).join(',')
+                : allKeywords[idx].mute_surfaces
+            };
+          }
+        } else {
+          nextFailed.push(kwObj);
+        }
+
+        progressFill.style.width = `${Math.round(((i + 1) / queue.length) * 100)}%`;
+
+        if (i < queue.length - 1 && !stopRequested) {
+          await new Promise((r) => setTimeout(r, 450));
+        }
+      }
+
+      failedQueue = nextFailed;
+      isRunning = false;
+      delete modal.dataset.xqbBusy;
+      surfacesOpt.cb.disabled = false;
+      forceAllOpt.cb.disabled = false;
+      stopBtn.style.display = 'none';
+      reloadBtn.style.display = 'block';
+
+      if (!modal.isConnected) return;
+
+      renderSummary();
+
+      if (stopRequested) {
+        statusLine.textContent = `Stopped: ${updatedCount} updated, ${failedQueue.length} failed.`;
+      } else if (failedQueue.length > 0) {
+        statusLine.textContent = `Done: ${updatedCount} updated, ${failedQueue.length} failed.`;
+        retryFailedBtn.textContent = `Retry ${failedQueue.length} Failed`;
+        retryFailedBtn.style.display = 'flex';
+        showToast(`${updatedCount} muted words updated (${failedQueue.length} failed).`, { isDanger: true });
+      } else {
+        statusLine.textContent = `Completed! Updated ${updatedCount} muted keyword(s) to "From anyone".`;
+        showToast(`Updated ${updatedCount} muted keywords to "From anyone"!`);
+      }
+    };
+
+    surfacesOpt.cb.addEventListener('change', renderSummary);
+    forceAllOpt.cb.addEventListener('change', renderSummary);
+    reloadBtn.addEventListener('click', loadList);
+    stopBtn.addEventListener('click', () => {
+      stopRequested = true;
+      statusLine.textContent = 'Stopping after current request...';
+    });
+    startBtn.addEventListener('click', () => runBatch(getTargetList()));
+    retryFailedBtn.addEventListener('click', () => {
+      if (failedQueue.length) runBatch([...failedQueue]);
+    });
+
+    loadList();
   }
 
   // =========================================================================
@@ -1863,6 +2369,9 @@
         GM_registerMenuCommand('Bulk Mute Keywords (Save to X Settings)', () => {
           showMultiKeywordModal([], '');
         });
+        GM_registerMenuCommand('Fix Existing Muted Words (Set to "From anyone")', () => {
+          showBulkFixKeywordsModal();
+        });
       } catch (_) {}
     }
 
@@ -1992,7 +2501,7 @@
       true
     );
 
-    console.log('[XQB v4.0.1] Loaded: Dynamic X.com API & Multi-Keyword Muting Active.');
+    console.log('[XQB v4.1.0] Loaded: Dynamic X.com API & Multi-Keyword Muting ("From anyone") Active.');
   }
 
   if (document.readyState === 'loading') {
